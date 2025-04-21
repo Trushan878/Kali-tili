@@ -4,7 +4,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Game Point Section with Total Game History</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mqtt/dist/mqtt.min.js"></script>
   <style>
+    /* Add your styles for confetti and congrats popup here */
     @keyframes confetti-fall {
       0% { transform: translateY(-100%) rotate(0deg); opacity: 1; }
       100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
@@ -90,6 +92,11 @@
   </section>
 
   <script>
+    // MQTT client setup
+    const mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+      clientId: 'client_' + Math.random().toString(16).substr(2, 8)
+    });
+
     const form = document.getElementById('gamePointForm');
     const playersList = document.getElementById('playersList');
     const clearBtn = document.getElementById('clearBtn');
@@ -230,6 +237,9 @@
       renderPlayers();
       renderHistory();
       renderTotalHistory();
+
+      // Publish new player list
+      mqttClient.publish('game/players', JSON.stringify(players), { retain: true });
     });
 
     function createConfetti() {
@@ -296,6 +306,9 @@
       form.reset();
       updatePoints();
 
+      // Publish the new total history
+      mqttClient.publish('game/totalHistory', JSON.stringify(totalHistory), { retain: true });
+
       showCongrats(winners);
     });
 
@@ -307,6 +320,27 @@
       const encodedMessage = encodeURIComponent(message.trim());
       const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
       window.open(whatsappUrl, '_blank');
+    });
+
+    // MQTT connection listeners
+    mqttClient.on('connect', () => {
+      console.log('Connected to MQTT broker');
+      mqttClient.subscribe('game/players');
+      mqttClient.subscribe('game/totalHistory');
+    });
+
+    mqttClient.on('message', (topic, message) => {
+      if (topic === 'game/players') {
+        players = JSON.parse(message.toString());
+        savePlayers();
+        renderPlayers();
+        renderHistory();
+        renderTotalHistory();
+      } else if (topic === 'game/totalHistory') {
+        totalHistory = JSON.parse(message.toString());
+        saveTotalHistory();
+        renderTotalHistory();
+      }
     });
 
     // Initial render
