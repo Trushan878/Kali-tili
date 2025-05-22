@@ -1,352 +1,254 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Game Point Section with Total Game History</title>
+  <meta charset="UTF-8">
+  <title>Player Points Tracker</title>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mqtt/dist/mqtt.min.js"></script>
   <style>
-    /* Add your styles for confetti and congrats popup here */
-    @keyframes confetti-fall {
-      0% { transform: translateY(-100%) rotate(0deg); opacity: 1; }
-      100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
-    }
-    .confetti {
-      position: fixed;
-      width: 10px;
-      height: 10px;
-      opacity: 0.9;
-      animation: confetti-fall 3s linear forwards;
-      z-index: 9999;
-      border-radius: 2px;
-    }
-    .confetti.color1 { background-color: #f59e0b; }
-    .confetti.color2 { background-color: #10b981; }
-    .confetti.color3 { background-color: #3b82f6; }
-
     .congrats-popup {
       position: fixed;
-      top: 20%;
+      top: 20px;
       left: 50%;
       transform: translateX(-50%);
-      background: #22c55e;
+      background: #10B981;
       color: white;
-      padding: 1.5rem 2rem;
-      border-radius: 0.75rem;
-      font-size: 1.5rem;
-      font-weight: 600;
-      box-shadow: 0 10px 15px rgba(34, 197, 94, 0.5);
-      z-index: 10000;
-      opacity: 0;
-      animation: fadeInOut 3s forwards;
-      white-space: nowrap;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 1.2rem;
+      z-index: 9999;
+      animation: fadeInOut 3s ease-in-out;
     }
+
     @keyframes fadeInOut {
-      0% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
-      10%, 90% { opacity: 1; transform: translateX(-50%) translateY(0); }
-      100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+      0% { opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { opacity: 0; }
     }
   </style>
 </head>
-<body class="bg-[#e0e7ff] min-h-screen flex justify-center items-start py-6 relative overflow-x-hidden">
-  <section class="w-[360px] max-w-full bg-white rounded-lg p-6 shadow-lg z-0">
-    <form id="gamePointForm" autocomplete="off" onsubmit="return false;">
-      <h2 class="text-[20px] font-normal mb-6 text-gray-900">Game Point?</h2>
+<body class="bg-gray-100 min-h-screen text-gray-800">
+  <div id="welcomePage" class="flex flex-col items-center justify-center h-screen">
+    <h1 class="text-4xl font-bold mb-8">Welcome to the Game</h1>
+    <button id="startGameBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded text-xl">Start Game</button>
+    <audio id="startSound" src="https://www.fesliyanstudios.com/play-mp3/4385" preload="auto"></audio>
+  </div>
 
-      <div class="mb-6 flex gap-2">
-        <input type="text" id="newPlayerName" placeholder="Add player name" class="flex-grow border border-gray-400 rounded-md px-3 py-2 text-[18px]" />
-        <button type="button" id="addPlayerBtn" class="px-4 py-2 bg-green-600 text-white rounded-md text-[18px] font-normal hover:bg-green-700 transition">Add</button>
-      </div>
+  <div id="gameBoard" class="p-6 hidden">
+    <h2 class="text-2xl font-bold mb-4">Add Player</h2>
+    <div class="flex gap-2 mb-4">
+      <input id="newPlayerName" type="text" placeholder="Enter name" class="border rounded px-4 py-2 w-64">
+      <button id="addPlayerBtn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Add</button>
+    </div>
 
-      <div id="playersList" class="flex flex-col gap-6 mb-8 max-h-[300px] overflow-auto">
-        <!-- Player items will be here -->
-      </div>
+    <h2 class="text-2xl font-bold mb-4">Select Players</h2>
+    <div id="playersList" class="space-y-2 mb-4"></div>
 
-      <div class="flex justify-between items-center mb-4">
-        <button type="button" id="clearBtn" class="px-6 py-3 bg-gray-300 text-gray-900 rounded-md text-[18px] font-normal hover:bg-gray-400 transition">
-          Clear Selection
-        </button>
-        <button type="submit" id="submitBtn" class="px-6 py-3 bg-blue-600 text-white rounded-md text-[18px] font-normal hover:bg-blue-700 transition">
-          Submit
-        </button>
-      </div>
-      <div class="flex justify-between mb-4 space-x-2">
-        <button type="button" id="clearHistoryBtn" class="flex-1 px-4 py-2 bg-red-500 text-white rounded-md text-[16px] font-normal hover:bg-red-600 transition">
-          Clear Points History
-        </button>
-        <button type="button" id="whatsappBtn" class="flex-1 px-4 py-2 bg-[#25D366] text-white rounded-md text-[16px] font-normal hover:bg-[#1ebe57] transition">
-          Send to WhatsApp
-        </button>
-      </div>
+    <button id="submitBtn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mr-2">Submit</button>
+    <button id="deleteLastGameBtn" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 mr-2">Undo Last Game</button>
+    <button id="clearAllBtn" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 mr-2">Clear All</button>
+    <button id="whatsappBtn" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Share via WhatsApp</button>
 
-      <div class="mb-4">
-        <h3 class="text-lg font-semibold text-gray-900 mb-2">Points History</h3>
-        <div id="pointsHistory" class="text-gray-900 text-[16px] font-normal space-y-1 max-h-48 overflow-auto"></div>
-      </div>
+    <div class="mt-8">
+      <h3 class="text-xl font-bold mb-2">Player Points</h3>
+      <div id="pointsHistory" class="space-y-1"></div>
+    </div>
 
-      <div>
-        <h3 class="text-lg font-semibold text-gray-900 mb-2">Total Game History</h3>
-        <div id="totalGameHistory" class="text-gray-900 text-[16px] font-normal space-y-1 max-h-48 overflow-auto"></div>
-      </div>
-    </form>
-  </section>
+    <div class="mt-8">
+      <h3 class="text-xl font-bold mb-2">Game History</h3>
+      <div id="gameHistory" class="space-y-1"></div>
+    </div>
+  </div>
 
   <script>
-    // MQTT client setup
-    const mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
-      clientId: 'client_' + Math.random().toString(16).substr(2, 8)
-    });
+    const firebaseConfig = {
+      apiKey: "AIzaSyAaQlSNJkU-NQnP0-uATxf2pU7a_8HEQpo",
+      authDomain: "index-e95d1.firebaseapp.com",
+      databaseURL: "https://index-e95d1-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "index-e95d1",
+      storageBucket: "index-e95d1.appspot.com",
+      messagingSenderId: "340216728284",
+      appId: "1:340216728284:web:f2e61485d29068fbf5c219"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const playersRef = db.ref("players");
+    const historyRef = db.ref("gameHistory");
 
-    const form = document.getElementById('gamePointForm');
+    const welcomePage = document.getElementById('welcomePage');
+    const gameBoard = document.getElementById('gameBoard');
+    const startGameBtn = document.getElementById('startGameBtn');
+    const startSound = document.getElementById('startSound');
     const playersList = document.getElementById('playersList');
-    const clearBtn = document.getElementById('clearBtn');
-    const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+    const newPlayerInput = document.getElementById('newPlayerName');
     const pointsHistory = document.getElementById('pointsHistory');
-    const totalGameHistory = document.getElementById('totalGameHistory');
-    const addPlayerBtn = document.getElementById('addPlayerBtn');
-    const newPlayerNameInput = document.getElementById('newPlayerName');
-    const submitBtn = document.getElementById('submitBtn');
-    const whatsappBtn = document.getElementById('whatsappBtn');
+    const gameHistory = document.getElementById('gameHistory');
 
-    // Load players and points from localStorage or initialize default
-    let players = JSON.parse(localStorage.getItem('players')) || {
-      Ankit: 0,
-      Nd: 0,
-      Vismay: 0,
-      Trushan: 0,
-      Shaunak: 0,
-      Other: 0
+    startGameBtn.onclick = () => {
+      welcomePage.style.display = 'none';
+      gameBoard.style.display = 'block';
+      startSound.currentTime = 10;
+      startSound.play();
+      setTimeout(() => startSound.pause(), 4000);
     };
 
-    // Load total game history from localStorage or initialize
-    let totalHistory = JSON.parse(localStorage.getItem('totalHistory')) || [];
+    document.getElementById('addPlayerBtn').onclick = async () => {
+      const name = newPlayerInput.value.trim();
+      if (!name) return;
+      const snap = await playersRef.child(name).once('value');
+      if (snap.exists()) {
+        alert("Player already exists!");
+        return;
+      }
+      await playersRef.child(name).set({ points: 0 });
+      newPlayerInput.value = '';
+    };
 
-    function savePlayers() {
-      localStorage.setItem('players', JSON.stringify(players));
+    document.getElementById('clearAllBtn').onclick = () => {
+      if (confirm("Are you sure you want to clear all player points and game history?")) {
+        playersRef.once('value').then(snapshot => {
+          const data = snapshot.val() || {};
+          for (const name in data) {
+            playersRef.child(name).update({ points: 0 });
+          }
+        });
+        historyRef.remove();
+      }
+    };
+
+    document.getElementById('submitBtn').onclick = async () => {
+      const selected = [];
+      document.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
+        selected.push(cb.value);
+        const awm = new Audio("https://downloadwap.com/content2/mp3-ringtones/tones/2020/awm-sniper-shot-79763.mp3");
+        awm.play();
+      });
+
+      if (selected.length === 0) return;
+
+      for (const name of selected) {
+        const snap = await playersRef.child(name).once('value');
+        const current = snap.exists() ? snap.val().points : 0;
+        await playersRef.child(name).update({ points: current + 1 });
+      }
+
+      const snap = await historyRef.once('value');
+      const gameNumber = snap.numChildren() + 1;
+      const entry = `Game ${gameNumber}: ${selected.join(', ')}`;
+      await historyRef.push(entry);
+      showCongrats(selected);
+    };
+
+    function showCongrats(names) {
+      const popup = document.createElement('div');
+      popup.className = 'congrats-popup';
+      popup.textContent = `Congratulations ${names.join(', ')}!`;
+      document.body.appendChild(popup);
+      setTimeout(() => popup.remove(), 3000);
+
+      const audio = new Audio("https://www.fesliyanstudios.com/play-mp3/387");
+      audio.play();
+
+      if ('speechSynthesis' in window) {
+        const msg = new SpeechSynthesisUtterance(`Congratulations ${names.join(', ')}`);
+        msg.lang = 'en-US';
+        speechSynthesis.speak(msg);
+      }
     }
 
-    function saveTotalHistory() {
-      localStorage.setItem('totalHistory', JSON.stringify(totalHistory));
+    function showSuccess(message) {
+      const popup = document.createElement('div');
+      popup.className = 'congrats-popup bg-green-500';
+      popup.textContent = message;
+      document.body.appendChild(popup);
+      setTimeout(() => popup.remove(), 3000);
     }
 
-    function renderPlayers() {
+    document.getElementById('deleteLastGameBtn').onclick = async () => {
+      if (!confirm("Are you sure you want to delete the last game and update points?")) return;
+
+      const snap = await historyRef.once('value');
+      const data = snap.val();
+      if (!data) return alert("No games to delete.");
+
+      const keys = Object.keys(data);
+      const lastKey = keys[keys.length - 1];
+      const lastEntry = data[lastKey];
+      const players = lastEntry.replace(/^Game \d+: /, '').split(',').map(p => p.trim());
+
+      for (const name of players) {
+        const playerSnap = await playersRef.child(name).once('value');
+        if (playerSnap.exists()) {
+          const current = playerSnap.val().points;
+          await playersRef.child(name).update({ points: Math.max(current - 1, 0) });
+        }
+      }
+
+      await historyRef.child(lastKey).remove();
+      showSuccess("Last game deleted and points updated!");
+    };
+
+    playersRef.on('value', snap => {
+      const data = snap.val() || {};
       playersList.innerHTML = '';
-      for (const player in players) {
-        const playerId = player.replace(/\s+/g, '-');
-        const div = document.createElement('div');
-        div.className = 'flex items-center gap-4';
+      pointsHistory.innerHTML = '';
 
+      for (const name in data) {
+        const div = document.createElement('div');
+        div.className = 'flex items-center justify-between';
         div.innerHTML = `
-          <label class="flex items-center gap-4 text-gray-900 text-[20px] font-normal cursor-pointer flex-grow">
-            <input type="checkbox" name="gamePoint" value="${player}" class="w-7 h-7 border border-gray-400 rounded-sm" id="checkbox-${playerId}" />
-            ${player}
-            <span class="ml-auto text-[18px] font-normal text-gray-700">Points: <span id="point-${playerId}">${players[player]}</span></span>
+          <label class="flex items-center gap-2">
+            <input type="checkbox" value="${name}" class="w-5 h-5" />
+            <span class="text-lg">${name}</span>
           </label>
-          <button type="button" data-player="${player}" class="removePlayerBtn px-3 py-1 bg-red-500 text-white rounded-md text-[16px] hover:bg-red-600 transition">Remove</button>
+          <span class="text-sm text-gray-600">Points: ${data[name].points}</span>
+          <button class="removePlayerBtn bg-red-500 text-white py-1 px-3 rounded hover:bg-red-600" data-player="${name}">Remove</button>
         `;
         playersList.appendChild(div);
       }
-      attachRemoveListeners();
-      attachCheckboxListeners();
-    }
 
-    function attachRemoveListeners() {
-      const removeButtons = document.querySelectorAll('.removePlayerBtn');
-      removeButtons.forEach(btn => {
+      document.querySelectorAll('.removePlayerBtn').forEach(btn => {
         btn.onclick = () => {
-          const player = btn.getAttribute('data-player');
-          delete players[player];
-          savePlayers();
-          renderPlayers();
-          renderHistory();
-          renderTotalHistory();
+          const playerToRemove = btn.getAttribute('data-player');
+          playersRef.child(playerToRemove).remove();
         };
       });
-    }
 
-    function attachCheckboxListeners() {
-      const checkboxes = document.querySelectorAll('input[name="gamePoint"]');
-      checkboxes.forEach(cb => {
-        cb.onchange = updatePoints;
-      });
-    }
-
-    function updatePoints() {
-      const checkboxes = document.querySelectorAll('input[name="gamePoint"]');
-      checkboxes.forEach(cb => {
-        const playerId = cb.value.replace(/\s+/g, '-');
-        const pointSpan = document.getElementById('point-' + playerId);
-        pointSpan.textContent = cb.checked ? '1' : '0';
-      });
-    }
-
-    clearBtn.addEventListener('click', () => {
-      form.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-        checkbox.checked = false;
-      });
-      updatePoints();
-    });
-
-    clearHistoryBtn.addEventListener('click', () => {
-      for (const player in players) {
-        players[player] = 0;
+      for (const name in data) {
+        const historyEntry = document.createElement('div');
+        historyEntry.textContent = `${name}: ${data[name].points} points`;
+        pointsHistory.appendChild(historyEntry);
       }
-      totalHistory = [];
-      savePlayers();
-      saveTotalHistory();
-      renderHistory();
-      renderTotalHistory();
-      updatePoints();
     });
 
-    function renderHistory() {
-      pointsHistory.innerHTML = '';
-      for (const player in players) {
+    historyRef.on('value', snap => {
+      const data = snap.val() || {};
+      gameHistory.innerHTML = '';
+      Object.values(data).forEach((entry, i) => {
         const div = document.createElement('div');
-        div.textContent = `${player} Points History: ${players[player]}`;
-        pointsHistory.appendChild(div);
-      }
-    }
-
-    function renderTotalHistory() {
-      totalGameHistory.innerHTML = '';
-      if (totalHistory.length === 0) {
-        totalGameHistory.textContent = 'No games played yet.';
-        return;
-      }
-      totalHistory.forEach((game, index) => {
-        const div = document.createElement('div');
-        div.textContent = `Game ${index + 1}: ` + Object.entries(game).map(([player, points]) => `${player}: ${points}`).join(', ');
-        totalGameHistory.appendChild(div);
+        div.textContent = `Game ${i + 1}: ${entry.replace(/^Game \d+: /, '')}`;
+        gameHistory.appendChild(div);
       });
-    }
-
-    addPlayerBtn.addEventListener('click', () => {
-      const newName = newPlayerNameInput.value.trim();
-      if (!newName) {
-        alert('Please enter a player name.');
-        return;
-      }
-      if (players.hasOwnProperty(newName)) {
-        alert('Player already exists.');
-        return;
-      }
-      players[newName] = 0;
-      newPlayerNameInput.value = '';
-      savePlayers();
-      renderPlayers();
-      renderHistory();
-      renderTotalHistory();
-
-      // Publish new player list
-      mqttClient.publish('game/players', JSON.stringify(players), { retain: true });
     });
 
-    function createConfetti() {
-      const confetti = document.createElement('div');
-      confetti.className = 'confetti color' + (Math.floor(Math.random() * 3) + 1);
-      confetti.style.left = Math.random() * window.innerWidth + 'px';
-      confetti.style.width = confetti.style.height = (5 + Math.random() * 7) + 'px';
-      confetti.style.animationDelay = (Math.random() * 3) + 's';
-      document.body.appendChild(confetti);
-      setTimeout(() => confetti.remove(), 3000);
-    }
+    document.getElementById('whatsappBtn').onclick = async () => {
+      const snap = await playersRef.once('value');
+      const data = snap.val() || {};
+      let message = `*Game Scoreboard* - ${new Date().toLocaleString()}\n\n`;
 
-    function showCongrats(names) {
-      if (names.length === 0) return;
-      const popup = document.createElement('div');
-      popup.className = 'congrats-popup';
-      popup.textContent = `🎉 Congratulations ${names.join(', ')}! 🎉`;
-      document.body.appendChild(popup);
+      const sortedPlayers = Object.entries(data).sort((a, b) => b[1].points - a[1].points);
+      const medals = ['1', '2', '3'];
 
-      // Speech synthesis
-      if ('speechSynthesis' in window) {
-        const msg = new SpeechSynthesisUtterance();
-        msg.text = `Congratulations ${names.join(', ')}! You got 1 point!`;
-        msg.lang = 'en-US';
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(msg);
-      }
-
-      // Create confetti particles
-      for (let i = 0; i < 50; i++) {
-        createConfetti();
-      }
-
-      setTimeout(() => {
-        popup.remove();
-      }, 3000);
-    }
-
-    submitBtn.addEventListener('click', () => {
-      const checkboxes = document.querySelectorAll('input[name="gamePoint"]');
-      let anyChecked = false;
-      let winners = [];
-      let currentGamePoints = {};
-      for (const player in players) {
-        currentGamePoints[player] = 0;
-      }
-      checkboxes.forEach(cb => {
-        if (cb.checked) {
-          players[cb.value] += 1;
-          currentGamePoints[cb.value] = 1;
-          winners.push(cb.value);
-          anyChecked = true;
-        }
+      sortedPlayers.forEach(([name, info], index) => {
+        const medal = medals[index] || `${index + 1}.`;
+        message += `${medal} *${name}* — ${info.points} point(s)\n`;
       });
-      if (!anyChecked) {
-        alert('Please select at least one player.');
-        return;
-      }
-      totalHistory.push(currentGamePoints);
-      savePlayers();
-      saveTotalHistory();
-      renderHistory();
-      renderTotalHistory();
-      form.reset();
-      updatePoints();
 
-      // Publish the new total history
-      mqttClient.publish('game/totalHistory', JSON.stringify(totalHistory), { retain: true });
-
-      showCongrats(winners);
-    });
-
-    whatsappBtn.addEventListener('click', () => {
-      let message = 'Game Points History:\n';
-      for (const player in players) {
-        message += `${player}: ${players[player]}\n`;
-      }
-      const encodedMessage = encodeURIComponent(message.trim());
-      const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
-      window.open(whatsappUrl, '_blank');
-    });
-
-    // MQTT connection listeners
-    mqttClient.on('connect', () => {
-      console.log('Connected to MQTT broker');
-      mqttClient.subscribe('game/players');
-      mqttClient.subscribe('game/totalHistory');
-    });
-
-    mqttClient.on('message', (topic, message) => {
-      if (topic === 'game/players') {
-        players = JSON.parse(message.toString());
-        savePlayers();
-        renderPlayers();
-        renderHistory();
-        renderTotalHistory();
-      } else if (topic === 'game/totalHistory') {
-        totalHistory = JSON.parse(message.toString());
-        saveTotalHistory();
-        renderTotalHistory();
-      }
-    });
-
-    // Initial render
-    renderPlayers();
-    renderHistory();
-    renderTotalHistory();
+      const encoded = encodeURIComponent(message);
+      window.open(`https://wa.me/?text=${encoded}`, '_blank');
+    };
   </script>
 </body>
 </html>
